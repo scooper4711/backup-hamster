@@ -24,6 +24,12 @@
             <p id="filter-status" class="filter-message">Type at least 3 characters to filter files</p>
         </div>
         
+        <div id="settings-container">
+            <label for="delay-seconds">Seconds between clicks:</label>
+            <input type="number" id="delay-seconds" min="1" max="60" value="5">
+            <p class="settings-hint">Higher values reduce server load (recommended: 5-10)</p>
+        </div>
+        
         <button id="download-button">Start Download</button>
         
         <div id="file-list" class="hidden">
