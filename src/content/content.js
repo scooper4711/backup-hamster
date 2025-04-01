@@ -78,45 +78,45 @@ function filterFiles(filter) {
 
 /**
  * Find all downloadable files on the page
- * Finds all anchor elements with a href that includes the string "Personalizer"
+ * Uses the same method as filterFiles to ensure all downloadable files are found
  */
 function findDownloadableFiles() {
     const files = [];
-    const fileElements = document.querySelectorAll('a[href*="Personalizer"]');
-
-    fileElements.forEach(fileElement => {
-        const fileId = extractFileId(fileElement);
-        const title = extractFileTitle(fileElement);
+    const fileRows = document.querySelectorAll('table > tbody');
+    
+    fileRows.forEach(tbody => {
+        // Skip rows that are hidden by the filter
+        if (tbody.style.display === 'none') return;
+        
+        // Skip tbodies without an ID (likely UI elements, not file entries)
+        if (!tbody.id) return;
+        
+        // Find the anchor in the second cell (file title)
+        const secondCell = tbody.querySelector('tr > td:nth-child(2)');
+        if (!secondCell) return;
+        
+        // Get the anchor element (file link)
+        const fileElement = secondCell.querySelector('a');
+        if (!fileElement) return;
+        
+        const fileId = tbody.id;
+        const title = fileElement.textContent.trim();
         const dateUpdated = extractUpdateDate(fileElement);
         const lastDownloaded = extractLastDownloaded(fileElement);
-        console.log(`File ID: ${fileId}, Title: ${title}, Date Updated: ${dateUpdated}, Last Downloaded: ${lastDownloaded}, File: ${fileElement}`);
+        
         if (fileId && title) {
             files.push({
                 id: fileId,
                 title: title,
                 dateUpdated: dateUpdated,
                 lastDownloaded: lastDownloaded,
-                element: fileElement // get the achor element for later use
+                element: fileElement
             });
         }
     });
-    console.log(`Found ${files.length} downloadable files.`);
+    
+    console.log(`Found ${files.length} downloadable files (including visible files without Personalizer).`);
     return files;
-}
-/**
- * Extract the file ID from the file element. It's the id of the <tbody> element that contains the fileElement
- */
-function extractFileId(fileElement) {
-    // The file ID is the id of the closest <tbody> element
-    const tbodyElement = fileElement.closest('tbody');
-    return tbodyElement ? tbodyElement.id : null;
-}
-/**
- * Extract the file title from the file element
- */
-function extractFileTitle(fileElement) {
-    // fileElement is an anchor tag. Return the body of the anchor tag if it exists
-    return fileElement && fileElement.textContent ? fileElement.textContent.trim() : null;
 }
 
 /**
@@ -167,73 +167,132 @@ function shouldDownloadFile(fileId, currentStatus, dateUpdated, history) {
 
 /**
  * Initialize personalization for all files (first click)
+ * Only clicks files that need personalizing (have Personalizer in href or never downloaded)
  */
 function initializePersonalization(files) {
     const delay = 5000; // 5 seconds delay between clicks
     let fileNumber = 1;
+    let clickCount = 0;
     
     files.forEach(file => {
         const lastDownloaded = file.lastDownloaded || 'never';
         const delayForThisFile = delay * fileNumber++;
         
-        if (lastDownloaded === 'never' || lastDownloaded === '') {
-            console.log(`Scheduling personalization for: ${file.title}`);
-            const tbodyElement = document.getElementById(file.id);
-            const titleElement = tbodyElement ? tbodyElement.querySelector('a') : null;
+        // Skip files that don't need personalization
+        if (lastDownloaded !== 'never' && lastDownloaded !== '') {
+            console.log(`Skipping already downloaded file: ${file.title}`);
+            return;
+        }
+        
+        console.log(`Scheduling personalization for: ${file.title}`);
+        const tbodyElement = document.getElementById(file.id);
+        const titleElement = tbodyElement ? tbodyElement.querySelector('a') : null;
+        
+        if (titleElement) {
+            // Check if this is a personalizer link
+            const href = titleElement.getAttribute('href') || '';
+            const needsPersonalization = href.includes('Personalizer') || lastDownloaded === 'never';
             
-            if (titleElement) {
-                setTimeout(() => {
-                    titleElement.click(); // Click to start personalization
-                    console.log(`Clicked to personalize: ${file.title}`);
-                    
-                    // Send status update back to popup
-                    chrome.runtime.sendMessage({
-                        action: "updateStatus",
-                        message: `Personalizing ${file.title}...`
-                    });
-                }, delayForThisFile);
+            if (!needsPersonalization) {
+                console.log(`Skipping - no Personalizer in href: ${file.title}`);
+                return;
             }
+            
+            setTimeout(() => {
+                titleElement.click(); // Click to start personalization
+                clickCount++;
+                console.log(`Clicked to personalize: ${file.title}`);
+                
+                // Send status update back to popup
+                chrome.runtime.sendMessage({
+                    action: "updateStatus",
+                    message: `Personalizing ${file.title}... (${clickCount}/${files.length})`
+                });
+            }, delayForThisFile);
         }
     });
 }
 
 /**
  * Set all files to ready state (second click after personalization)
+ * Uses same delay mechanism as personalization
  */
 function setFilesToReady(files) {
+    const delay = 2000; // 2 seconds delay between clicks 
+    let fileNumber = 1;
+    let clickCount = 0;
+    
     files.forEach(file => {
-        // Skip files that are already ready
-        if (file.status === 'ready') {
-            return;
-        }
+        const delayForThisFile = delay * fileNumber++;
         
-        // Find the element
-        const titleElement = file.element || 
-            document.querySelector(`[data-product-id="${file.id}"]`) ||
-            document.querySelector(`.product-title a[title="${file.title}"]`);
-        
-        if (titleElement) {
-            // Click to set to ready
-            titleElement.click();
-            console.log(`Set to ready: ${file.title}`);
-        }
+        setTimeout(() => {
+            // Find the element
+            const tbodyElement = document.getElementById(file.id);
+            const titleElement = tbodyElement ? tbodyElement.querySelector('a') : null;
+            
+            if (titleElement) {
+                // Check if this file shows "Personalizing..."
+                const tbodyText = tbodyElement.textContent || '';
+                const isPersonalizing = tbodyText.includes('Personalizing') || 
+                                        tbodyText.includes('Click link again in');
+                
+                if (!isPersonalizing) {
+                    console.log(`Skipping - not in personalizing state: ${file.title}`);
+                    return;
+                }
+                
+                titleElement.click(); // Click to set to ready
+                clickCount++;
+                console.log(`Set to ready: ${file.title}`);
+                
+                // Send status update back to popup
+                chrome.runtime.sendMessage({
+                    action: "updateStatus",
+                    message: `Setting ready ${file.title}... (${clickCount}/${files.length})`
+                });
+            }
+        }, delayForThisFile);
     });
 }
 
 /**
  * Trigger downloads for all files (third click)
+ * Uses same delay mechanism for consistency
  */
 function downloadAllFiles(files) {
+    const delay = 2000; // 2 seconds delay between downloads
+    let fileNumber = 1;
+    let clickCount = 0;
+    
     files.forEach(file => {
-        // Find the element
-        const titleElement = file.element || 
-            document.querySelector(`[data-product-id="${file.id}"]`) ||
-            document.querySelector(`.product-title a[title="${file.title}"]`);
+        const delayForThisFile = delay * fileNumber++;
         
-        if (titleElement) {
-            // Click to download
-            titleElement.click();
-            console.log(`Triggered download for: ${file.title}`);
-        }
+        setTimeout(() => {
+            // Find the element
+            const tbodyElement = document.getElementById(file.id);
+            const titleElement = tbodyElement ? tbodyElement.querySelector('a') : null;
+            
+            if (titleElement) {
+                // Check if this file shows "Ready!"
+                const tbodyText = tbodyElement.textContent || '';
+                const isReady = tbodyText.includes('Ready!') || 
+                               tbodyText.includes('Click again to download');
+                
+                if (!isReady) {
+                    console.log(`Skipping download - not in ready state: ${file.title}`);
+                    return;
+                }
+                
+                titleElement.click(); // Click to download
+                clickCount++;
+                console.log(`Triggered download for: ${file.title}`);
+                
+                // Send status update back to popup
+                chrome.runtime.sendMessage({
+                    action: "updateStatus",
+                    message: `Downloading ${file.title}... (${clickCount}/${files.length})`
+                });
+            }
+        }, delayForThisFile);
     });
 }
