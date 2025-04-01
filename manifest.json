@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Backup Hamster",
+  "version": "1.0.0",
+  "description": "A Chrome/Edge plugin that downloads all your digital content from Paizo.com.",
+  "permissions": [
+    "downloads",
+    "storage",
+    "activeTab"
+  ],
+  "background": {
+    "service_worker": "src/background/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://paizo.com/paizo/account/assets"],
+      "js": ["src/content/content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "src/icons/icon16.png",
+      "48": "src/icons/icon48.png",
+      "128": "src/icons/icon128.png"
+    }
+  },
+  "options_page": "src/options/options.html",
+  "icons": {
+    "16": "src/icons/icon16.png",
+    "48": "src/icons/icon48.png",
+    "128": "src/icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["src/popup/popup.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

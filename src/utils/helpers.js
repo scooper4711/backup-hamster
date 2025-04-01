@@ -1,0 +1,1 @@
+// This file contains helper functions that provide additional functionality used throughout the extension.

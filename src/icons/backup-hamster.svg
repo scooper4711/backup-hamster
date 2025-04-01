@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- Background -->
+  <circle cx="64" cy="64" r="60" fill="#F9A825"/>
+  
+  <!-- Hamster body -->
+  <ellipse cx="64" cy="68" rx="40" ry="35" fill="#FFCC80"/>
+  
+  <!-- Hamster face -->
+  <circle cx="64" cy="58" r="30" fill="#FFE0B2"/>
+  
+  <!-- Eyes -->
+  <circle cx="54" cy="50" r="4" fill="#333"/>
+  <circle cx="74" cy="50" r="4" fill="#333"/>
+  
+  <!-- Nose -->
+  <circle cx="64" cy="60" r="3" fill="#E57373"/>
+  
+  <!-- Ears -->
+  <circle cx="44" cy="38" r="8" fill="#FFCC80"/>
+  <circle cx="84" cy="38" r="8" fill="#FFCC80"/>
+  
+  <!-- Cheeks -->
+  <circle cx="44" cy="64" r="8" fill="#FFAB91"/>
+  <circle cx="84" cy="64" r="8" fill="#FFAB91"/>
+  
+  <!-- Backup symbol -->
+  <circle cx="95" cy="95" r="20" fill="#4CAF50"/>
+  <path d="M95,82 L105,92 L95,102 L85,92 Z" fill="white"/>
+  <rect x="92" y="92" width="6" height="15" fill="white"/>
+</svg>

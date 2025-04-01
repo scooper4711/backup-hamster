@@ -1,0 +1,22 @@
+{
+  "name": "backup-hamster",
+  "version": "1.0.0",
+  "description": "A Chrome/Edge extension to download digital content from Paizo.com.",
+  "main": "src/background/background.js",
+  "scripts": {
+    "build": "echo 'Build script not defined'",
+    "test": "echo 'Test script not defined'",
+    "lint": "echo 'Lint script not defined'"
+  },
+  "keywords": [
+    "chrome",
+    "edge",
+    "extension",
+    "download",
+    "paizo"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

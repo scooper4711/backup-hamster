@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup Hamster</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Backup Hamster</h1>
+        <p>Download all your Paizo content</p>
+        
+        <div id="status-container">
+            <p id="status-message">Ready to download files from Paizo.com</p>
+            <div id="progress-bar" class="hidden">
+                <div id="progress-fill"></div>
+            </div>
+        </div>
+        
+        <div id="filter-container">
+            <label for="file-filter">Filter files (enter at least 3 characters):</label>
+            <input type="text" id="file-filter" placeholder="Enter 3+ characters to filter" minlength="3">
+            <p id="filter-status" class="filter-message">Type at least 3 characters to filter files</p>
+        </div>
+        
+        <button id="download-button">Start Download</button>
+        
+        <div id="file-list" class="hidden">
+            <h2>Files to download:</h2>
+            <ul id="files-container"></ul>
+        </div>
+        
+        <div class="footer">
+            <p>Only works on <a href="https://paizo.com/paizo/account/assets" target="_blank">paizo.com/paizo/account/assets</a></p>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
