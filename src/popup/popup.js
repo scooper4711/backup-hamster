@@ -25,8 +25,18 @@ document.addEventListener('DOMContentLoaded', function() {
         debounceTimer = window.setTimeout(callback, time);
     };
 
+    // On popup load, restore last filter
+    chrome.storage.local.get(['lastFilter'], function(result) {
+        if (result.lastFilter) {
+            filterInput.value = result.lastFilter;
+            // Trigger the filter
+            filterInput.dispatchEvent(new Event('input'));
+        }
+    });
+
     filterInput.addEventListener('input', function() {
         const filterValue = filterInput.value.trim();
+        chrome.storage.local.set({lastFilter: filterValue});
 
         if (filterValue.length >= 3) {
             filterStatus.textContent = `Filtering for: "${filterValue}"...`;
@@ -82,64 +92,94 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Updated to accept both filter and delaySeconds parameters
 function initiateDownload(filter, delaySeconds = 5) {
-    const statusMessage = document.getElementById('status-message');
+    // Start the download process with step 1
+    findFiles(filter, delaySeconds);
+}
+
+// Step 1: Find files to download
+function findFiles(filter, delaySeconds) {
+    updateStatus('Scanning for files to download...');
     
-    // Step 1: Find files to download
     chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        statusMessage.textContent = 'Scanning for files to download...';
-        
         chrome.tabs.sendMessage(tabs[0].id, {
             action: "findDownloadableFiles",
-            filter: filter // Pass the filter to find only matching files
+            filter: filter
         }, function(response) {
             if (!response || !response.files || response.files.length === 0) {
-                statusMessage.textContent = 'No files found to download.';
+                updateStatus('No files found to download.');
                 return;
             }
             
-            let files = response.files;
-            statusMessage.textContent = `Found ${files.length} files to download.`;
-
-            // Step 2: Initialize personalization for all files
+            const files = response.files;
+            updateStatus(`Found ${files.length} files to download.`);
+            
+            // Move to step 2 after a brief delay
             setTimeout(() => {
-                statusMessage.textContent = `Initializing personalization for ${files.length} files...`;
-                chrome.tabs.sendMessage(tabs[0].id, {
-                    action: "initializePersonalization", 
-                    files: files,
-                    delaySeconds: delaySeconds
-                }, function(response) {
-                    // Wait for personalization to complete
-                    const waitTime = 60 * 1000; // Estimate based on delay × 12
-                    statusMessage.textContent = `Waiting ${Math.round(waitTime/1000)} seconds for personalization to complete...`;
-                    
-                    // Step 3: Set all files to ready state
-                    setTimeout(() => {
-                        statusMessage.textContent = 'Setting files to ready state...';
-                        chrome.tabs.sendMessage(tabs[0].id, {
-                            action: "setFilesToReady", 
-                            files: files,
-                            delaySeconds: delaySeconds
-                        }, function(response) {
-                            // Step 4: Download all files
-                            setTimeout(() => {
-                                statusMessage.textContent = 'Triggering downloads for all files...';
-                                chrome.tabs.sendMessage(tabs[0].id, {
-                                    action: "downloadAllFiles", 
-                                    files: files,
-                                    delaySeconds: delaySeconds
-                                }, function(response) {
-                                    statusMessage.textContent = `Download process completed for ${files.length} files!`;
-                                    
-                                    // Store download info in storage
-                                    saveDownloadHistory(files);
-                                });
-                            }, 1000); // Small delay before final click
-                        });
-                    }, waitTime); // Dynamic wait time based on delay value
-                });
-            }, 1000); // Small delay before starting personalization
+                startPersonalization(files, delaySeconds);
+            }, 1000);
         });
     });
+}
+
+// Step 2: Initialize personalization for all files
+function startPersonalization(files, delaySeconds) {
+    updateStatus(`Initializing personalization for ${files.length} files...`);
+    
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+            action: "initializePersonalization", 
+            files: files,
+            delaySeconds: delaySeconds
+        }, function() {
+            // Calculate wait time based on the number of files and delay
+            const waitTime = files.length * delaySeconds * 1000; // Convert seconds to milliseconds
+            updateStatus(`Waiting ${Math.round(waitTime/1000)} seconds for personalization to complete...`);
+            
+            // Move to step 3 after personalization should be complete
+            setTimeout(() => {
+                setToReady(files, delaySeconds);
+            }, waitTime);
+        });
+    });
+}
+
+// Step 3: Set all files to ready state
+function setToReady(files, delaySeconds) {
+    updateStatus('Setting files to ready state...');
+    
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+            action: "setFilesToReady", 
+            files: files,
+            delaySeconds: delaySeconds
+        }, function() {
+            // Move to step 4 after a brief delay
+            setTimeout(() => {
+                triggerDownloads(files, delaySeconds);
+            }, 1000);
+        });
+    });
+}
+
+// Step 4: Download all files
+function triggerDownloads(files, delaySeconds) {
+    updateStatus('Triggering downloads for all files...');
+    
+    chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+            action: "downloadAllFiles", 
+            files: files,
+            delaySeconds: delaySeconds
+        }, function() {
+            updateStatus(`Download process completed for ${files.length} files!`);
+            saveDownloadHistory(files);
+        });
+    });
+}
+
+// Helper function to update status message
+function updateStatus(message) {
+    document.getElementById('status-message').textContent = message;
 }
 
 function saveDownloadHistory(files) {

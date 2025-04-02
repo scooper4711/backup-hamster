@@ -5,24 +5,16 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     switch(request.action) {
         case "findDownloadableFiles":
             // If filter is provided, only return filtered files
-            const allFiles = findDownloadableFiles();
-            let filteredFiles = allFiles;
-            
-            if (request.filter && request.filter.length >= 3) {
-                const normalizedFilter = request.filter.toLowerCase();
-                filteredFiles = allFiles.filter(file => 
-                    file.title.toLowerCase().includes(normalizedFilter)
-                );
-            }
-            
+            const filteredFiles = findDownloadableFiles();
             sendResponse({files: filteredFiles});
             break;
         case "filterFiles":
-            // Call the filter function and return visible count
+            // Hide all rows that don't match the filter.
             const visibleCount = filterFiles(request.filter);
             sendResponse({visibleCount: visibleCount});
             break;
         case "initializePersonalization":
+            // Click on all visible links that include a Personalizer in their href
             initializePersonalization(request.files);
             sendResponse({status: "personalization_started"});
             break;
@@ -46,12 +38,23 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 
 /**
  * Filter files based on text content
- * @param {string} filter - Text to filter by (case insensitive)
+ * Supports space-separated tokens where ALL must match
+ * @param {string} filter - Space-separated tokens to filter by (case insensitive)
  * @returns {number} - Count of visible items after filtering
  */
 function filterFiles(filter) {
-  // Normalize filter for case-insensitive comparison
-  const normalizedFilter = filter.toLowerCase();
+  // If filter is empty or too short, show all files
+  if (!filter || filter.length < 3) {
+    return showAllFiles();
+  }
+  
+  // Split filter into tokens and normalize them
+  const tokens = filter.toLowerCase().trim().split(/\s+/).filter(token => token.length > 0);
+  
+  // If no valid tokens, show all files
+  if (tokens.length === 0) {
+    return showAllFiles();
+  }
   
   // Find all file rows (tbody elements)
   const fileRows = document.querySelectorAll('table > tbody');
@@ -70,12 +73,30 @@ function filterFiles(filter) {
     // Get all text from the cell (includes title in anchor or span)
     const cellText = secondCell.textContent.trim().toLowerCase();
     
-    // Show or hide based on filter match
-    if (!filter || filter.length < 3 || cellText.includes(normalizedFilter)) {
+    // Check if ALL tokens are found in the cell text
+    const allTokensMatch = tokens.every(token => cellText.includes(token));
+    
+    // Show or hide based on whether all tokens match
+    if (allTokensMatch) {
       tbody.style.display = ''; // Show the file
       visibleCount++;
     } else {
       tbody.style.display = 'none'; // Hide the file
+    }
+  });
+  
+  return visibleCount;
+}
+
+// Helper function to show all files
+function showAllFiles() {
+  const fileRows = document.querySelectorAll('table > tbody');
+  let visibleCount = 0;
+  
+  fileRows.forEach(tbody => {
+    if (tbody.id) {
+      tbody.style.display = ''; // Show all files
+      visibleCount++;
     }
   });
   
