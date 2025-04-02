@@ -15,12 +15,25 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
             break;
         case "initializePersonalization":
             // Click on all visible links that include a Personalizer in their href
-            initializePersonalization(request.files);
-            sendResponse({status: "personalization_started"});
+            clickOnPersonalizerLinks(request.files, request.delaySeconds || 5)
+                .then(result => {
+                    sendResponse({status: "personalization_complete", count: result.count});
+                })
+                .catch(error => {
+                    console.error("Error during personalization:", error);
+                    sendResponse({status: "error", message: error.message});
+                });
             break;
         case "setFilesToReady":
-            setFilesToReady(request.files, request.delaySeconds || 5);
-            sendResponse({status: "set_to_ready"});
+            // Click on all visible links that include a Personalizer in their href
+            clickOnPersonalizerLinks(request.files, request.delaySeconds || 5)
+                .then(result => {
+                    sendResponse({status: "set_to_ready", count: result.count});
+                })
+                .catch(error => {
+                    console.error("Error during setFilesToReady:", error);
+                    sendResponse({status: "error", message: error.message});
+                });
             break;
         case "downloadAllFiles":
             downloadAllFiles(request.files, request.delaySeconds || 5);
@@ -29,7 +42,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         case "startDownload":
             // Pass the delay seconds to your functions
             const delaySeconds = request.delaySeconds || 5;
-            initializePersonalization(files, delaySeconds);
+            clickOnPersonalizerLinks(files, delaySeconds);
             // Also pass to other click functions
             break;
     }
@@ -169,116 +182,58 @@ function extractLastDownloaded(fileElement) {
 }
 
 /**
- * Determine if a file should be downloaded
+ * Click on all files that need personalization
+ * @param {Array} files - Array of file objects with id, title, element
+ * @param {number} delaySeconds - Delay in seconds between clicks
+ * @returns {Promise} - Resolves when all clicks are done
  */
-function shouldDownloadFile(fileId, currentStatus, dateUpdated, history) {
-    // If file is already in personalizing or ready state, download it
-    if (currentStatus === 'personalizing' || currentStatus === 'ready') {
-        return true;
-    }
-    
-    // If file has never been downloaded before, download it
-    if (!history[fileId]) {
-        return true;
-    }
-    
-    // If file has been updated since last download, download it again
-    if (dateUpdated && history[fileId].lastDownloaded) {
-        const lastDownloaded = new Date(history[fileId].lastDownloaded);
-        const updated = new Date(dateUpdated);
-        return updated > lastDownloaded;
-    }
-    
-    return false;
-}
-
-/**
- * Initialize personalization for all files (first click)
- * Only clicks files that need personalizing (have Personalizer in href or never downloaded)
- */
-function initializePersonalization(files, delaySeconds = 5) {
-    const delay = delaySeconds * 1000; // Convert to milliseconds
-    let fileNumber = 1;
-    let clickCount = 0;
-    
-    files.forEach(file => {
-        const lastDownloaded = file.lastDownloaded || 'never';
-        const delayForThisFile = delay * fileNumber++;
+function clickOnPersonalizerLinks(files, delaySeconds = 5) {
+    console.log(`Starting personalization for ${files.length} files with a delay of ${delaySeconds} seconds...`);
+    return new Promise((resolve) => {
+        const delay = delaySeconds * 1000;
+        let fileNumber = 1;
+        let clickCount = 0;
+        const totalFiles = files.length;
+        const promises = [];
         
-        // Skip files that don't need personalization
-        // if (lastDownloaded !== 'never' && lastDownloaded !== '') {
-        //     console.log(`Skipping already downloaded file: ${file.title}`);
-        //     return;
-        // }
-        
-        console.log(`Scheduling personalization for: ${file.title}`);
-        const tbodyElement = document.getElementById(file.id);
-        const titleElement = tbodyElement ? tbodyElement.querySelector('a') : null;
-        
-        if (titleElement) {
-            // Check if this is a personalizer link
-            const href = titleElement.getAttribute('href') || '';
-            const needsPersonalization = href.includes('Personalizer') || lastDownloaded === 'never';
-            
-            if (!needsPersonalization) {
-                console.log(`Skipping - no Personalizer in href: ${file.title}`);
-                return;
-            }
-            
-            setTimeout(() => {
-                titleElement.click(); // Click to start personalization
-                clickCount++;
-                console.log(`Clicked to personalize: ${file.title}`);
-                
-                // Send status update back to popup
-                chrome.runtime.sendMessage({
-                    action: "updateStatus",
-                    message: `Personalizing ${file.title}... (${clickCount}/${files.length})`
-                });
-            }, delayForThisFile);
-        }
-    });
-}
-
-/**
- * Set all files to ready state (second click after personalization)
- * Uses same delay mechanism as personalization
- */
-function setFilesToReady(files, delaySeconds = 5) {
-    const delay = delaySeconds * 1000; // Convert to milliseconds
-    let fileNumber = 1;
-    let clickCount = 0;
-    
-    files.forEach(file => {
-        const delayForThisFile = delay * fileNumber++;
-        
-        setTimeout(() => {
-            // Find the element
+        files.forEach(file => {
+            // skip if the href does not contain "Personalizer"
             const tbodyElement = document.getElementById(file.id);
             const titleElement = tbodyElement ? tbodyElement.querySelector('a') : null;
             
-            if (titleElement) {
-                // Check if this file shows "Personalizing..."
-                const tbodyText = tbodyElement.textContent || '';
-                const isPersonalizing = tbodyText.includes('Personalizing') || 
-                                      tbodyText.includes('Click link again in');
-                
-                if (!isPersonalizing) {
-                    console.log(`Skipping - not in personalizing state: ${file.title}`);
-                    return;
-                }
-                
-                titleElement.click(); // Click to set to ready
-                clickCount++;
-                console.log(`Set to ready: ${file.title}`);
-                
-                // Send status update back to popup
-                chrome.runtime.sendMessage({
-                    action: "updateStatus",
-                    message: `Setting ready ${file.title}... (${clickCount}/${files.length})`
-                });
+            if (!titleElement) return;
+            
+            // Check if this is a personalizer link
+            const href = titleElement.getAttribute('href') || '';
+            const needsPersonalization = href.includes('Personalizer');
+            if (!needsPersonalization) {
+                console.log(`Skipping - not a Personalizer link: ${file.title}`);
+                return;
             }
-        }, delayForThisFile);
+            
+            // Create a promise for each file click
+            const clickPromise = new Promise(clickResolve => {
+                setTimeout(() => {
+                    titleElement.click();
+                    clickCount++;
+                    console.log(`Clicked: ${file.title}`);
+                    // Send status update back to popup
+                    chrome.runtime.sendMessage({
+                        action: "updateStatus",
+                        message: `Personalizing ${file.title}... (${clickCount}/${totalFiles})`
+                    });
+                    clickResolve(); // Mark this click as complete
+                }, delay * fileNumber++);
+            });
+            
+            promises.push(clickPromise);
+        });
+        
+        // Wait for ALL click operations to complete
+        Promise.all(promises).then(() => {
+            console.log(`All ${clickCount} personalizations complete`);
+            resolve({count: clickCount});
+        });
     });
 }
 
@@ -287,7 +242,8 @@ function setFilesToReady(files, delaySeconds = 5) {
  * Uses same delay mechanism for consistency
  */
 function downloadAllFiles(files, delaySeconds = 5) {
-    const delay = delaySeconds * 1000; // Convert to milliseconds
+    const delay = 500; // For downloading, half a second delay is usually enough
+    console.log(`Starting download for ${files.length} files with a delay of ${delaySeconds} seconds...`);
     let fileNumber = 1;
     let clickCount = 0;
     
