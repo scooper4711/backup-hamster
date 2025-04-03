@@ -132,7 +132,7 @@ function startPersonalization(files, delaySeconds) {
             delaySeconds: delaySeconds
         }, function() {
             // Calculate wait time based on the number of files and delay
-            const waitTime = files.length * delaySeconds * 1000; // Convert seconds to milliseconds
+            const waitTime = 60 * 1000; // Convert seconds to milliseconds
             updateStatus(`Waiting ${Math.round(waitTime/1000)} seconds for personalization to complete...`);
             
             // Move to step 3 after personalization should be complete
